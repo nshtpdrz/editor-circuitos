@@ -1,0 +1,1322 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Editor de Circuitos</title>
+<style>
+:root{
+  --bg:#f3f4f6;--panel:#ffffff;--line:#e3e6eb;--text:#1d2433;--muted:#6b7280;
+  --accent:#2563eb;--accent-soft:#dbe6fd;--ink:#1d2433;--canvas:#fbfbfc;
+  --grid:#eceef2;--grid2:#dadee5;--term:#e11d48;--danger:#dc2626;--sel:#2563eb;
+  --ok:#15803d;--warn:#b45309;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#111318;--panel:#1a1d24;--line:#2b303a;--text:#e6e8ec;--muted:#9aa1ad;
+    --accent:#60a5fa;--accent-soft:#1e3a5f;--ink:#e6e8ec;--canvas:#15181e;
+    --grid:#1d2128;--grid2:#262b34;--term:#fb7185;--danger:#f87171;--sel:#60a5fa;
+    --ok:#4ade80;--warn:#fbbf24;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#111318;--panel:#1a1d24;--line:#2b303a;--text:#e6e8ec;--muted:#9aa1ad;
+  --accent:#60a5fa;--accent-soft:#1e3a5f;--ink:#e6e8ec;--canvas:#15181e;
+  --grid:#1d2128;--grid2:#262b34;--term:#fb7185;--danger:#f87171;--sel:#60a5fa;
+  --ok:#4ade80;--warn:#fbbf24;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--text);font:14px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;display:flex;flex-direction:column;overflow:hidden}
+header{display:flex;align-items:center;gap:6px;padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap}
+header h1{font-size:15px;margin:0 10px 0 0;font-weight:650;white-space:nowrap}
+.sep{width:1px;height:22px;background:var(--line);margin:0 4px}
+button{font:inherit;color:var(--text);background:transparent;border:1px solid var(--line);border-radius:6px;padding:5px 10px;cursor:pointer;white-space:nowrap}
+button:hover{background:var(--bg)}
+button:disabled{opacity:.4;cursor:default}
+button.danger{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 40%,var(--line))}
+#zoomLbl{min-width:48px;text-align:center;color:var(--muted);font-variant-numeric:tabular-nums}
+main{flex:1;display:grid;grid-template-columns:190px 1fr 240px;min-height:0}
+#palette,#props{background:var(--panel);overflow:auto}
+#palette{border-right:1px solid var(--line);padding:8px}
+#props{border-left:1px solid var(--line);padding:12px}
+.pg h4{margin:10px 4px 6px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600}
+.pitems{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.pitem{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 4px;touch-action:none;user-select:none}
+.pitem svg{width:44px;height:44px;pointer-events:none}
+.pitem span{font-size:11px;color:var(--muted);text-align:center;line-height:1.15}
+.pitem.active{border-color:var(--accent);background:var(--accent-soft)}
+#wrap{position:relative;min-width:0;min-height:0}
+#svg{width:100%;height:100%;display:block;background:var(--canvas);touch-action:none;user-select:none;-webkit-user-select:none}
+#svg.panning{cursor:grab}
+#status{position:absolute;left:10px;bottom:10px;right:10px;pointer-events:none;color:var(--muted);font-size:12px}
+#status span{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:4px 8px;display:inline-block}
+#props h3{margin:0 0 12px;font-size:15px}
+.fld{display:block;margin-bottom:10px}
+.fld span{display:block;font-size:12px;color:var(--muted);margin-bottom:3px}
+.fld input{width:100%;font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--canvas);color:var(--text)}
+.fld input:focus{outline:2px solid var(--accent);outline-offset:-1px}
+.chk{display:flex;gap:6px;align-items:center;margin-bottom:12px}
+.row{display:flex;gap:6px;margin-bottom:8px}
+.row button{flex:1}
+#props .danger{width:100%}
+.help{color:var(--muted);font-size:12.5px}
+.help ul{padding-left:16px;margin:6px 0}
+.help li{margin:3px 0}
+kbd{font:11px ui-monospace,monospace;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 4px;background:var(--canvas);color:var(--text)}
+.stats{display:flex;gap:12px;margin:4px 0 14px}
+.stats b{display:block;font-size:20px;color:var(--text)}
+
+/* Símbolos */
+.sym *{fill:none;stroke:var(--ink);stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.sym .f{fill:var(--ink)}
+.sym .thick{stroke-width:3.5}
+.glyph{font:600 15px system-ui,sans-serif;fill:var(--ink);text-anchor:middle;dominant-baseline:central;pointer-events:none}
+.lbl{font:13px system-ui,sans-serif;fill:var(--ink);pointer-events:none}
+.lbl.txt{font-size:15px}
+.hit{fill:transparent}
+.comp{cursor:move}
+.comp.sel .hit{fill:var(--accent-soft);opacity:.55}
+.comp.sel .sym *{stroke:var(--sel)}
+.comp.sel .sym .f,.comp.sel .glyph,.comp.sel .lbl{fill:var(--sel)}
+.ghost{opacity:.45;pointer-events:none}
+.wl{fill:none;stroke:var(--ink);stroke-width:2;stroke-linejoin:round;stroke-linecap:round;pointer-events:none}
+.whit{fill:none;stroke:transparent;stroke-width:12;cursor:pointer}
+.wire:hover .wl{stroke:var(--accent)}
+.wire.sel .wl{stroke:var(--sel);stroke-width:3}
+.dot{fill:var(--ink);pointer-events:none}
+.thit{fill:transparent;cursor:crosshair}
+.term{fill:var(--canvas);stroke:var(--term);stroke-width:1.5;pointer-events:none;opacity:0}
+.term.free,.comp:hover .term,.wiring .term{opacity:1}
+.thit:hover + .term{fill:var(--accent);stroke:var(--accent);opacity:1}
+.handle{fill:#fff;stroke:var(--sel);stroke-width:2;cursor:move}
+.preview{fill:none;stroke:var(--accent);stroke-width:2;stroke-dasharray:6 4;pointer-events:none}
+.box{fill:color-mix(in srgb,var(--accent) 10%,transparent);stroke:var(--accent);stroke-dasharray:4 3;pointer-events:none}
+.res{font:600 12px system-ui,sans-serif;fill:var(--ok);pointer-events:none}
+.ntag{pointer-events:none}
+.ntag rect{fill:var(--accent)}
+.ntag text{font:600 11px system-ui,sans-serif;fill:#fff;text-anchor:middle;dominant-baseline:central}
+
+/* Análisis */
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button.primary:hover{filter:brightness(1.08);background:var(--accent)}
+button.on{background:var(--ok);border-color:var(--ok);color:#fff}
+button.wide{width:100%;margin-top:8px}
+.card{border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin:8px 0;font-size:13px}
+.card .k{color:var(--muted)}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:3px 10px;font-size:13px;margin:6px 0}
+.kv span:nth-child(odd){color:var(--muted)}
+.eq{font-family:ui-monospace,Consolas,monospace;font-size:12.5px;margin-top:4px;word-break:break-word}
+.ok{color:var(--ok);font-weight:600}
+.bad{color:var(--danger);font-weight:600}
+.err{color:var(--danger);border:1px solid color-mix(in srgb,var(--danger) 40%,var(--line));border-radius:8px;padding:8px 10px;font-size:13px}
+.warn{color:var(--warn);font-size:12.5px;margin:8px 0}
+#modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:10;padding:16px}
+#modal[hidden]{display:none}
+.mbox{background:var(--panel);color:var(--text);border-radius:12px;max-width:860px;width:100%;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.mhead{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--line)}
+.mhead h2{margin:0;font-size:17px}
+#mbody{overflow:auto;padding:4px 20px 20px}
+#mbody h3{margin:20px 0 6px;font-size:15px}
+#mbody h3 small{font-weight:400;color:var(--muted);font-size:12.5px}
+#mbody table{border-collapse:collapse;width:100%;font-size:13px}
+#mbody th,#mbody td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+#mbody th{color:var(--muted);font-weight:600;font-size:12px}
+.tw{overflow-x:auto}
+
+@media (max-width:760px){
+  main{grid-template-columns:1fr;grid-template-rows:auto 1fr auto}
+  #palette{border-right:0;border-bottom:1px solid var(--line);padding:6px 16px;overflow-x:auto;overflow-y:hidden;display:flex;gap:12px}
+  .pg{flex:none}
+  .pg h4{margin:2px 0 4px}
+  .pitems{display:flex}
+  .pitem{width:64px}
+  #props{border-left:0;border-top:1px solid var(--line);max-height:34vh;padding:12px 16px}
+  header{padding:8px 16px}
+  header h1{width:100%}
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>⚡ Editor de Circuitos</h1>
+  <button data-a="new" title="Nuevo diagrama">Nuevo</button>
+  <button data-a="open" title="Abrir archivo .json">Abrir</button>
+  <button data-a="save" title="Guardar como .json (Ctrl+S)">Guardar</button>
+  <button data-a="svg" title="Exportar imagen SVG">SVG</button>
+  <button data-a="png" title="Exportar imagen PNG">PNG</button>
+  <span class="sep"></span>
+  <button data-a="undo" id="bUndo" title="Deshacer (Ctrl+Z)">↶</button>
+  <button data-a="redo" id="bRedo" title="Rehacer (Ctrl+Y)">↷</button>
+  <button data-a="rotr" title="Rotar selección (R)">⟳ Rotar</button>
+  <button data-a="del" title="Eliminar selección (Supr)">Eliminar</button>
+  <span class="sep"></span>
+  <button data-a="solve" id="bSolve" class="primary" title="Resolver el circuito (Ohm y Kirchhoff)">▶ Resolver</button>
+  <button data-a="report" title="Ver el análisis completo">Análisis</button>
+  <span class="sep"></span>
+  <button data-a="zout" title="Alejar">−</button>
+  <span id="zoomLbl">100%</span>
+  <button data-a="zin" title="Acercar">+</button>
+  <button data-a="fit" title="Ajustar a la vista">Ajustar</button>
+  <input type="file" id="fileIn" accept=".json,application/json" hidden>
+</header>
+<main>
+  <aside id="palette"></aside>
+  <div id="wrap">
+    <svg id="svg" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <pattern id="g1" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M20 0H0V20" fill="none" stroke="var(--grid)" stroke-width="1"/></pattern>
+        <pattern id="g2" width="100" height="100" patternUnits="userSpaceOnUse"><rect width="100" height="100" fill="url(#g1)"/><path d="M100 0H0V100" fill="none" stroke="var(--grid2)" stroke-width="1"/></pattern>
+      </defs>
+      <rect id="gridRect" width="100%" height="100%" fill="url(#g2)"/>
+      <g id="world"></g>
+    </svg>
+    <div id="status"><span id="statusTxt"></span></div>
+  </div>
+  <aside id="props"></aside>
+</main>
+<datalist id="vlist"></datalist>
+<div id="modal" hidden>
+  <div class="mbox">
+    <div class="mhead"><h2>Análisis del circuito (DC)</h2><button data-a="closeReport" title="Cerrar (Esc)">✕</button></div>
+    <div id="mbody"></div>
+  </div>
+</div>
+
+<script>
+const G = 20;
+// Definición de componentes. t: terminales (coords locales), b: caja [x1,y1,x2,y2], lp: posición de etiqueta, s: símbolo SVG
+const T = {
+  vsource:{n:'Fuente DC',g:'Fuentes',p:'V',v:'5V',vals:['1.5V','3.3V','5V','9V','12V','24V'],t:[[0,-40],[0,40]],b:[-20,-40,20,40],lp:[28,0],
+    s:'<path d="M0 -40V-20M0 20V40"/><circle r="20"/><path d="M0 -14V-4M-5 -9H5M-5 10H5"/>'},
+  battery:{n:'Batería',g:'Fuentes',p:'B',v:'9V',vals:['1.5V','3V','3.7V','9V','12V'],t:[[0,-40],[0,40]],b:[-18,-40,18,40],lp:[26,0],
+    s:'<path d="M0 -40V-8M0 8V40M-18 -8H18"/><path class="thick" d="M-9 8H9"/><path d="M-24 -18h7M-20.5 -21.5v7"/>'},
+  acsource:{n:'Fuente AC',g:'Fuentes',p:'V',v:'120V 60Hz',vals:['12V 60Hz','120V 60Hz','220V 50Hz'],t:[[0,-40],[0,40]],b:[-20,-40,20,40],lp:[28,0],
+    s:'<path d="M0 -40V-20M0 20V40"/><circle r="20"/><path d="M-11 0q5.5 -11 11 0t11 0"/>'},
+  isource:{n:'Fuente de corriente',g:'Fuentes',p:'I',v:'1mA',vals:['1mA','10mA','100mA','1A'],t:[[0,-40],[0,40]],b:[-20,-40,20,40],lp:[28,0],
+    s:'<path d="M0 -40V-20M0 20V40"/><circle r="20"/><path d="M0 12V-10"/><path class="f" d="M0 -13L-5 -4H5Z"/>'},
+  ground:{n:'Tierra',g:'Fuentes',p:'GND',hide:true,nv:true,t:[[0,-20]],b:[-15,-20,15,14],lp:[0,30],
+    s:'<path d="M0 -20V0M-15 0H15M-9 6H9M-3 12H3"/>'},
+  resistor:{n:'Resistencia',g:'Pasivos',p:'R',v:'1kΩ',vals:['10Ω','100Ω','220Ω','330Ω','470Ω','1kΩ','2.2kΩ','4.7kΩ','10kΩ','100kΩ','1MΩ'],t:[[-40,0],[40,0]],b:[-40,-10,40,10],lp:[0,-14],
+    s:'<path d="M-40 0H-24L-21 -8L-15 8L-9 -8L-3 8L3 -8L9 8L15 -8L21 8L24 0H40"/>'},
+  pot:{n:'Potenció­metro',g:'Pasivos',p:'RV',v:'10kΩ',vals:['1kΩ','10kΩ','50kΩ','100kΩ'],t:[[-40,0],[40,0],[0,-40]],b:[-40,-40,40,10],lp:[0,22],
+    s:'<path d="M-40 0H-24L-21 -8L-15 8L-9 -8L-3 8L3 -8L9 8L15 -8L21 8L24 0H40M0 -40V-16"/><path class="f" d="M0 -10L-5 -19H5Z"/>'},
+  capacitor:{n:'Capacitor',g:'Pasivos',p:'C',v:'100nF',vals:['10pF','100pF','1nF','10nF','100nF','1µF','10µF'],t:[[-40,0],[40,0]],b:[-40,-16,40,16],lp:[0,-22],
+    s:'<path d="M-40 0H-5M5 0H40"/><path class="thick" d="M-5 -16V16M5 -16V16"/>'},
+  ecap:{n:'Capacitor electrolítico',g:'Pasivos',p:'C',v:'100µF',vals:['1µF','10µF','47µF','100µF','470µF','1000µF'],t:[[-40,0],[40,0]],b:[-40,-17,40,16],lp:[0,-22],
+    s:'<path d="M-40 0H-5M6 0H40"/><path class="thick" d="M-5 -16V16M10 -16Q2 0 10 16"/><path d="M-18 -14h7M-14.5 -17.5v7"/>'},
+  inductor:{n:'Inductor',g:'Pasivos',p:'L',v:'10mH',vals:['1µH','10µH','100µH','1mH','10mH','100mH'],t:[[-40,0],[40,0]],b:[-40,-8,40,4],lp:[0,-12],
+    s:'<path d="M-40 0H-24a6 6 0 0 1 12 0a6 6 0 0 1 12 0a6 6 0 0 1 12 0a6 6 0 0 1 12 0H40"/>'},
+  diode:{n:'Diodo',g:'Semiconductores',p:'D',v:'1N4007',vals:['1N4007','1N4148','1N5819'],t:[[-40,0],[40,0]],b:[-40,-11,40,11],lp:[0,-16],
+    s:'<path d="M-40 0H-10M10 0H40"/><path class="f" d="M-10 -10L10 0L-10 10Z"/><path d="M10 -11V11"/>'},
+  led:{n:'LED',g:'Semiconductores',p:'D',v:'Rojo',vals:['Rojo','Verde','Azul','Amarillo','Blanco'],t:[[-40,0],[40,0]],b:[-40,-24,40,11],lp:[0,-30],
+    s:'<path d="M-40 0H-10M10 0H40"/><path class="f" d="M-10 -10L10 0L-10 10Z"/><path d="M10 -11V11M0 -14l8 -8m-5 0h5v5M8 -10l8 -8m-5 0h5v5"/>'},
+  zener:{n:'Diodo Zener',g:'Semiconductores',p:'DZ',v:'5.1V',vals:['3.3V','5.1V','9.1V','12V'],t:[[-40,0],[40,0]],b:[-40,-12,40,12],lp:[0,-18],
+    s:'<path d="M-40 0H-10M10 0H40"/><path class="f" d="M-10 -10L10 0L-10 10Z"/><path d="M5 -14L10 -10V10L15 14"/>'},
+  npn:{n:'Transistor NPN',g:'Semiconductores',p:'Q',v:'2N2222',vals:['2N2222','2N3904','BC547','TIP31'],t:[[-40,0],[20,-40],[20,40]],b:[-40,-40,28,40],lp:[34,0],
+    s:'<circle cx="4" r="24"/><path d="M-40 0H-8"/><path class="thick" d="M-8 -14V14"/><path d="M-8 -6L20 -22V-40M-8 6L20 22V40"/><path class="f" d="M17 20.3L7.2 19.3L11.2 12.3Z"/>'},
+  pnp:{n:'Transistor PNP',g:'Semiconductores',p:'Q',v:'2N3906',vals:['2N3906','BC557','TIP32'],t:[[-40,0],[20,-40],[20,40]],b:[-40,-40,28,40],lp:[34,0],
+    s:'<circle cx="4" r="24"/><path d="M-40 0H-8"/><path class="thick" d="M-8 -14V14"/><path d="M-8 -6L20 -22V-40M-8 6L20 22V40"/><path class="f" d="M-6 7.2L3.8 8.3L-0.2 15.2Z"/>'},
+  switch:{n:'Interruptor',g:'Otros',p:'S',nv:true,t:[[-40,0],[40,0]],b:[-40,-16,40,4],lp:[0,-22],
+    s:c => `<path d="M-40 0H-16M16 0H40${c && c.closed ? 'M-14 -2L16 -2' : 'M-14 -2L14 -16'}"/><circle cx="-16" r="2.5"/><circle cx="16" r="2.5"/>`},
+  button:{n:'Pulsador',g:'Otros',p:'SW',nv:true,t:[[-40,0],[40,0]],b:[-40,-22,40,4],lp:[0,-28],
+    s:c => `<path d="M-40 0H-16M16 0H40${c && c.closed ? 'M-18 -3H18M0 -3V-15M-6 -15H6' : 'M-18 -10H18M0 -10V-22M-6 -22H6'}"/><circle cx="-16" r="2.5"/><circle cx="16" r="2.5"/>`},
+  lamp:{n:'Foco',g:'Otros',p:'X',v:'12V 5W',vals:['12V 5W','12V 21W','120V 60W','100Ω'],t:[[-40,0],[40,0]],b:[-40,-16,40,16],lp:[0,-22],
+    s:'<path d="M-40 0H-16M16 0H40"/><circle r="16"/><path d="M-11.3 -11.3L11.3 11.3M-11.3 11.3L11.3 -11.3"/>'},
+  motor:{n:'Motor',g:'Otros',p:'M',v:'10Ω',vals:['5Ω','10Ω','12V 6W'],t:[[-40,0],[40,0]],b:[-40,-16,40,16],lp:[0,-22],gl:'M',
+    s:'<path d="M-40 0H-16M16 0H40"/><circle r="16"/>'},
+  voltmeter:{n:'Voltímetro',g:'Otros',p:'VM',v:'',vals:[],t:[[-40,0],[40,0]],b:[-40,-16,40,16],lp:[0,-22],gl:'V',
+    s:'<path d="M-40 0H-16M16 0H40"/><circle r="16"/>'},
+  ammeter:{n:'Amperímetro',g:'Otros',p:'AM',v:'',vals:[],t:[[-40,0],[40,0]],b:[-40,-16,40,16],lp:[0,-22],gl:'A',
+    s:'<path d="M-40 0H-16M16 0H40"/><circle r="16"/>'},
+  node:{n:'Nodo',g:'Otros',p:'N',hide:true,nv:true,t:[[0,0]],b:[-6,-6,6,6],lp:[10,-12],
+    s:'<circle class="f" r="4"/>'},
+  text:{n:'Texto',g:'Otros',p:'',nv:true,t:[],b:[-20,-12,20,10],lp:[0,0],s:''},
+};
+// Nombres de terminales (para el reporte) y posición de los resultados cuando no va opuesta a la etiqueta
+for(const k of ['vsource','battery','isource']) T[k].tn = ['+','−'];
+for(const k of ['diode','led','zener']) T[k].tn = ['ánodo','cátodo'];
+for(const k of ['npn','pnp']) T[k].tn = ['base','colector','emisor'];
+T.pot.tn = ['1','2','cursor'];
+T.pot.ap = [0,52];
+const symOf = c => typeof T[c.type].s === 'function' ? T[c.type].s(c) : T[c.type].s;
+
+const $ = s => document.querySelector(s);
+const svg = $('#svg'), world = $('#world');
+let doc = {comps:[], wires:[]};
+let view = {x:60, y:40, z:1};
+let sel = {c:new Set(), w:new Set()};
+let undoS = [], redoS = [];
+let drag = null, wiring = null, placing = null, preEdit = null;
+let spaceDown = false, lastDown = {t:0, k:''}, clip = null, pasteN = 0;
+const KEY = 'editor-circuitos-v1';
+
+const rid = () => Math.random().toString(36).slice(2, 9);
+const sn = v => Math.round(v / G) * G;
+const esc = s => String(s ?? '').replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+const snapshot = () => JSON.stringify(doc);
+const findC = id => doc.comps.find(c => c.id === id);
+const findW = id => doc.wires.find(w => w.id === id);
+
+function rotP([x, y], r){ r = ((r % 4) + 4) % 4; for(let i = 0; i < r; i++) [x, y] = [-y, x]; return [x, y]; }
+function termPos(c, i){ const [x, y] = rotP(T[c.type].t[i], c.rot || 0); return [c.x + x, c.y + y]; }
+function byId(){ const m = new Map(); doc.comps.forEach(c => m.set(c.id, c)); return m; }
+function endPos(m, e){ const c = m.get(e.c); return c && T[c.type].t[e.t] ? termPos(c, e.t) : null; }
+function corner(p, q, f){ return f ? [p[0], q[1]] : [q[0], p[1]]; }
+function ctrlPts(m, w){ const a = endPos(m, w.a), b = endPos(m, w.b); return a && b ? [a, ...w.pts, b] : null; }
+function expand(P, f){
+  const o = [P[0]];
+  for(let i = 0; i < P.length - 1; i++){
+    const p = P[i], q = P[i+1];
+    if(p[0] !== q[0] && p[1] !== q[1]) o.push(corner(p, q, f));
+    o.push(q);
+  }
+  return o;
+}
+const pathD = P => 'M' + P.map(p => p[0] + ' ' + p[1]).join('L');
+// ¿La terminal sale en vertical? Así el primer codo del cable sigue esa dirección.
+function termVertical(c, i){ const [x, y] = rotP(T[c.type].t[i], c.rot || 0); return Math.abs(y) > Math.abs(x); }
+
+function boxOf(c){
+  if(c.type === 'text'){ const w = Math.max(24, (c.label || '').length * 8.4); return [-w/2, -13, w/2, 9]; }
+  const b = T[c.type].b, r = c.rot || 0;
+  const pts = [[b[0], b[1]], [b[2], b[1]], [b[0], b[3]], [b[2], b[3]]].map(p => rotP(p, r));
+  const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+  return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+}
+
+function labelSVG(c){
+  const d = T[c.type];
+  if(c.type === 'text') return `<text class="lbl txt" x="0" y="0" text-anchor="middle" dominant-baseline="central">${esc(c.label)}</text>`;
+  if(c.hide) return '';
+  return linesSVG([c.label, d.nv ? '' : c.value].filter(Boolean), rotP(d.lp, c.rot || 0), 'lbl');
+}
+// Coloca líneas de texto alrededor de un punto, alineadas según el lado del componente
+function linesSVG(lines, [ox, oy], cls){
+  if(!lines.length) return '';
+  const n = lines.length, lh = 14;
+  let anchor = 'middle', ys;
+  if(Math.abs(ox) > Math.abs(oy)){ anchor = ox > 0 ? 'start' : 'end'; ys = lines.map((_, i) => oy + 4 + (i - (n - 1) / 2) * lh); }
+  else if(oy < 0) ys = lines.map((_, i) => oy - (n - 1 - i) * lh);
+  else ys = lines.map((_, i) => oy + 10 + i * lh);
+  return lines.map((t, i) => `<text class="${cls}" x="${ox}" y="${ys[i]}" text-anchor="${anchor}">${esc(t)}</text>`).join('');
+}
+
+function compSVG(c, o = {}){
+  const d = T[c.type], r = c.rot || 0, b = boxOf(c), pad = 4;
+  let h = `<g class="comp${o.sel ? ' sel' : ''}${o.ghost ? ' ghost' : ''}"${o.exp || o.ghost ? '' : ` data-c="${c.id}"`} transform="translate(${c.x} ${c.y})">`;
+  if(!o.exp) h += `<rect class="hit" x="${b[0]-pad}" y="${b[1]-pad}" width="${b[2]-b[0]+2*pad}" height="${b[3]-b[1]+2*pad}" rx="4"/>`;
+  h += `<g class="sym" transform="rotate(${r * 90})">${symOf(c)}</g>`;
+  if(d.gl) h += `<text class="glyph" x="0" y="1">${d.gl}</text>`;
+  h += labelSVG(c);
+  if(!o.exp && !o.ghost){
+    d.t.forEach((_, i) => {
+      const [x, y] = rotP(d.t[i], r);
+      h += `<circle class="thit" data-tc="${c.id}" data-t="${i}" cx="${x}" cy="${y}" r="8"/><circle class="term${o.conn && o.conn.has(c.id + ':' + i) ? '' : ' free'}" cx="${x}" cy="${y}" r="3.5"/>`;
+    });
+  }
+  return h + '</g>';
+}
+
+function contentSVG(exp){
+  const m = byId(), parts = [], ends = new Map();
+  for(const w of doc.wires){
+    const P = ctrlPts(m, w); if(!P) continue;
+    const d = pathD(expand(P, w.flip));
+    for(const e of [w.a, w.b]){ const k = e.c + ':' + e.t; ends.set(k, (ends.get(k) || 0) + 1); }
+    parts.push(exp ? `<path class="wl" d="${d}"/>`
+      : `<g class="wire${sel.w.has(w.id) ? ' sel' : ''}" data-w="${w.id}"><path class="whit" d="${d}"/><path class="wl" d="${d}"/></g>`);
+  }
+  const conn = new Set(ends.keys());
+  for(const c of doc.comps) parts.push(compSVG(c, {exp, sel: sel.c.has(c.id), conn}));
+  // Puntos de unión donde llegan 2+ cables a la misma terminal de un componente
+  for(const [k, n] of ends){
+    const [cid, t] = k.split(':'), c = m.get(cid);
+    if(c && c.type !== 'node' && n >= 2){ const [x, y] = termPos(c, +t); parts.push(`<circle class="dot" cx="${x}" cy="${y}" r="4"/>`); }
+  }
+  return parts.join('');
+}
+
+let rq = 0;
+function requestRender(){ if(!rq) rq = requestAnimationFrame(() => { rq = 0; render(); }); }
+function render(){
+  const parts = [contentSVG(false)];
+  if(analysis) parts.push(overlaySVG(getSol()));
+  const m = byId();
+  if(sel.w.size === 1 && !sel.c.size){
+    const w = findW([...sel.w][0]);
+    if(w) w.pts.forEach((p, i) => parts.push(`<rect class="handle" data-h="${i}" data-hw="${w.id}" x="${p[0]-5}" y="${p[1]-5}" width="10" height="10" rx="2"/>`));
+  }
+  if(wiring){
+    const a = endPos(m, wiring.from);
+    if(a){ const P = [a, ...wiring.pts, wiring.cur || a]; parts.push(`<path class="preview" d="${pathD(expand(P, wiring.flip))}"/>`); }
+  }
+  if(placing && placing.cur) parts.push(compSVG({type: placing.type, x: placing.cur[0], y: placing.cur[1], rot: placing.rot, label: T[placing.type].p ? nextLabel(T[placing.type].p) : 'Texto', value: T[placing.type].v, hide: T[placing.type].hide}, {ghost: true}));
+  if(drag && drag.kind === 'box' && drag.cur){
+    const [x1, y1, x2, y2] = rectOf(drag.start, drag.cur);
+    parts.push(`<rect class="box" x="${x1}" y="${y1}" width="${x2-x1}" height="${y2-y1}"/>`);
+  }
+  world.innerHTML = parts.join('');
+  world.setAttribute('transform', `translate(${view.x} ${view.y}) scale(${view.z})`);
+  const pt = `translate(${view.x} ${view.y}) scale(${view.z})`;
+  $('#g1').setAttribute('patternTransform', pt);
+  $('#g2').setAttribute('patternTransform', pt);
+  svg.classList.toggle('wiring', !!wiring);
+  $('#zoomLbl').textContent = Math.round(view.z * 100) + '%';
+  $('#bUndo').disabled = !undoS.length;
+  $('#bRedo').disabled = !redoS.length;
+  const bs = $('#bSolve');
+  bs.textContent = analysis ? '■ Ocultar resultados' : '▶ Resolver';
+  bs.className = analysis ? 'on' : 'primary';
+  updateStatus();
+  updatePres();
+}
+const rectOf = (a, b) => [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1])];
+
+function updateStatus(){
+  let s;
+  if(placing) s = 'Clic para colocar · R rota · Shift+clic coloca varios · Esc cancela';
+  else if(wiring) s = 'Clic en una terminal o cable para conectar · clic en vacío agrega un doblez · clic dos veces en el mismo punto termina en un nodo · Esc cancela';
+  else if(analysis){ const r = getSol(); s = r.error ? '⚠ ' + r.error : 'Resultados activos: se recalculan al editar · las flechas verdes muestran el sentido real de la corriente'; }
+  else s = 'Clic en una terminal (○) para cablear · arrastra para mover · rueda = zoom · Espacio o botón derecho + arrastrar = mover la vista';
+  $('#statusTxt').textContent = s;
+}
+
+/* ---------- Historial y guardado ---------- */
+let saveT = 0;
+function persist(){ clearTimeout(saveT); saveT = setTimeout(() => { try{ localStorage.setItem(KEY, snapshot()); }catch(e){} }, 250); }
+function commit(pre){
+  if(pre == null || pre === snapshot()) return;
+  undoS.push(pre); if(undoS.length > 200) undoS.shift();
+  redoS = []; persist(); render();
+}
+function restore(json){
+  doc = JSON.parse(json);
+  for(const id of [...sel.c]) if(!findC(id)) sel.c.delete(id);
+  for(const id of [...sel.w]) if(!findW(id)) sel.w.delete(id);
+  persist(); render(); renderPanel();
+}
+function undo(){ if(!undoS.length) return; redoS.push(snapshot()); restore(undoS.pop()); }
+function redo(){ if(!redoS.length) return; undoS.push(snapshot()); restore(redoS.pop()); }
+
+/* ---------- Operaciones ---------- */
+function nextLabel(prefix){
+  if(!prefix) return '';
+  const re = new RegExp('^' + prefix + '(\\d+)$');
+  let mx = 0;
+  for(const c of doc.comps){ const mm = re.exec(c.label || ''); if(mm) mx = Math.max(mx, +mm[1]); }
+  return prefix + (mx + 1);
+}
+function addComp(type, [x, y], rot = 0){
+  const d = T[type];
+  const c = {id: rid(), type, x, y, rot, label: type === 'text' ? 'Texto' : nextLabel(d.p), value: d.v || ''};
+  if(d.hide) c.hide = true;
+  doc.comps.push(c);
+  return c;
+}
+function cleanWires(){
+  const m = byId();
+  doc.wires = doc.wires.filter(w => endPos(m, w.a) && endPos(m, w.b) && !(w.a.c === w.b.c && w.a.t === w.b.t));
+}
+function deleteSel(){
+  if(!sel.c.size && !sel.w.size) return;
+  const pre = snapshot();
+  doc.comps = doc.comps.filter(c => !sel.c.has(c.id));
+  doc.wires = doc.wires.filter(w => !sel.w.has(w.id));
+  cleanWires();
+  setSel([], []);
+  commit(pre);
+}
+function rotateSel(dir = 1){
+  if(placing){ placing.rot = (placing.rot + dir + 4) % 4; requestRender(); return; }
+  if(!sel.c.size) return;
+  const pre = snapshot();
+  for(const id of sel.c){ const c = findC(id); if(c) c.rot = ((c.rot || 0) + dir + 4) % 4; }
+  commit(pre);
+}
+function internalWires(){ return doc.wires.filter(w => sel.w.has(w.id) || (sel.c.has(w.a.c) && sel.c.has(w.b.c))); }
+function nudge(dx, dy){
+  if(!sel.c.size && !sel.w.size) return;
+  const pre = snapshot();
+  for(const id of sel.c){ const c = findC(id); c.x += dx; c.y += dy; }
+  for(const w of internalWires()) w.pts = w.pts.map(p => [p[0] + dx, p[1] + dy]);
+  commit(pre);
+}
+function setSel(cs, ws){ sel.c = new Set(cs); sel.w = new Set(ws); render(); renderPanel(); }
+
+// Inserta un nodo sobre un cable (en el punto s) partiéndolo en dos. Devuelve el nodo.
+function splitWire(w, s){
+  const m = byId(), P = ctrlPts(m, w);
+  let best = null;
+  for(let i = 0; i < P.length - 1; i++){
+    const p = P[i], q = P[i+1], k = corner(p, q, w.flip);
+    for(const [u, v] of [[p, k], [k, q]]){
+      let pr;
+      if(u[1] === v[1]) pr = [Math.min(Math.max(s[0], Math.min(u[0], v[0])), Math.max(u[0], v[0])), u[1]];
+      else pr = [u[0], Math.min(Math.max(s[1], Math.min(u[1], v[1])), Math.max(u[1], v[1]))];
+      const dd = Math.hypot(pr[0] - s[0], pr[1] - s[1]);
+      if(!best || dd < best.d) best = {d: dd, i, pr};
+    }
+  }
+  const pr = [sn(best.pr[0]), sn(best.pr[1])];
+  const node = addComp('node', pr, 0);
+  const i = best.i;
+  doc.wires = doc.wires.filter(x => x !== w);
+  doc.wires.push({id: rid(), a: w.a, b: {c: node.id, t: 0}, pts: w.pts.slice(0, i), flip: w.flip});
+  doc.wires.push({id: rid(), a: {c: node.id, t: 0}, b: w.b, pts: w.pts.slice(i), flip: w.flip});
+  sel.w.delete(w.id);
+  return node;
+}
+
+function startWire(cid, t, s){
+  const c = findC(cid);
+  wiring = {from: {c: cid, t}, pts: [], cur: s, flip: termVertical(c, t), downX: null, downY: null};
+}
+function finishWire(to){
+  const pre = wiring.pre;
+  if(!(to.c === wiring.from.c && to.t === wiring.from.t)){
+    const pts = wiring.pts.filter((p, i, a) => i === 0 || p[0] !== a[i-1][0] || p[1] !== a[i-1][1]);
+    doc.wires.push({id: rid(), a: wiring.from, b: to, pts, flip: wiring.flip});
+  }
+  wiring = null;
+  commit(pre);
+  renderPanel();
+}
+
+function copySel(){
+  if(!sel.c.size) return;
+  const cs = doc.comps.filter(c => sel.c.has(c.id));
+  const ws = doc.wires.filter(w => sel.c.has(w.a.c) && sel.c.has(w.b.c));
+  clip = JSON.stringify({cs, ws}); pasteN = 0;
+}
+function paste(){
+  if(!clip) return;
+  const {cs, ws} = JSON.parse(clip), pre = snapshot(), map = {};
+  const off = G * 2 * (++pasteN);
+  for(const c of cs){
+    const n = {...c, id: rid(), x: c.x + off, y: c.y + off};
+    const p = T[c.type].p;
+    if(p && new RegExp('^' + p + '\\d+$').test(c.label || '')) n.label = nextLabel(p);
+    map[c.id] = n.id; doc.comps.push(n);
+  }
+  const nw = ws.map(w => ({...w, id: rid(), a: {c: map[w.a.c], t: w.a.t}, b: {c: map[w.b.c], t: w.b.t}, pts: w.pts.map(p => [p[0] + off, p[1] + off])}));
+  doc.wires.push(...nw);
+  sel.c = new Set(Object.values(map)); sel.w = new Set();
+  commit(pre); renderPanel();
+}
+
+/* ---------- Vista ---------- */
+function toWorld(e){ const r = svg.getBoundingClientRect(); return [(e.clientX - r.left - view.x) / view.z, (e.clientY - r.top - view.y) / view.z]; }
+function zoomAt(f, sx, sy){
+  const z = Math.min(4, Math.max(0.2, view.z * f));
+  view.x = sx - (sx - view.x) * (z / view.z);
+  view.y = sy - (sy - view.y) * (z / view.z);
+  view.z = z; requestRender();
+}
+function bounds(){
+  if(!doc.comps.length) return null;
+  const m = byId(); let x1 = 1e9, y1 = 1e9, x2 = -1e9, y2 = -1e9;
+  for(const c of doc.comps){
+    const b = boxOf(c);
+    x1 = Math.min(x1, c.x + b[0]); y1 = Math.min(y1, c.y + b[1]); x2 = Math.max(x2, c.x + b[2]); y2 = Math.max(y2, c.y + b[3]);
+    if(!c.hide && c.type !== 'text'){ // margen para etiquetas
+      const [ox, oy] = rotP(T[c.type].lp, c.rot || 0), lw = Math.max((c.label || '').length, (c.value || '').length) * 8;
+      const lx1 = c.x + ox - (ox > 0 ? 0 : ox < 0 ? lw : lw / 2), lx2 = lx1 + lw;
+      x1 = Math.min(x1, lx1); x2 = Math.max(x2, lx2);
+      y1 = Math.min(y1, c.y + oy - 30); y2 = Math.max(y2, c.y + oy + 30);
+    }
+  }
+  for(const w of doc.wires){ const P = ctrlPts(m, w); if(P) for(const p of P){ x1 = Math.min(x1, p[0]); y1 = Math.min(y1, p[1]); x2 = Math.max(x2, p[0]); y2 = Math.max(y2, p[1]); } }
+  return [x1, y1, x2, y2];
+}
+function fit(){
+  const b = bounds(), r = svg.getBoundingClientRect();
+  if(!b){ view = {x: r.width / 2, y: r.height / 2, z: 1}; requestRender(); return; }
+  const bw = b[2] - b[0] + 80, bh = b[3] - b[1] + 80;
+  view.z = Math.min(2, Math.max(0.2, Math.min(r.width / bw, r.height / bh)));
+  view.x = r.width / 2 - (b[0] + b[2]) / 2 * view.z;
+  view.y = r.height / 2 - (b[1] + b[3]) / 2 * view.z;
+  requestRender();
+}
+
+/* ---------- Eventos del lienzo ---------- */
+svg.addEventListener('contextmenu', e => e.preventDefault());
+svg.addEventListener('wheel', e => {
+  e.preventDefault();
+  const r = svg.getBoundingClientRect();
+  zoomAt(Math.exp(-e.deltaY * 0.0015), e.clientX - r.left, e.clientY - r.top);
+}, {passive: false});
+
+svg.addEventListener('pointerdown', e => {
+  const p = toWorld(e), s = [sn(p[0]), sn(p[1])];
+  try{ svg.setPointerCapture(e.pointerId); }catch(_){}
+  if(e.button === 2 && (wiring || placing)){ cancelModes(); return; }
+  if(e.button === 1 || e.button === 2 || spaceDown){
+    drag = {kind: 'pan', sx: e.clientX, sy: e.clientY, vx: view.x, vy: view.y}; svg.classList.add('panning'); return;
+  }
+  if(e.button !== 0) return;
+
+  const tg = e.target;
+  const hEl = tg.closest('[data-h]'), tEl = tg.closest('[data-t]'), cEl = tg.closest('[data-c]'), wEl = tg.closest('[data-w]');
+  const key = hEl ? 'h' + hEl.dataset.h : tEl ? 't' + tEl.dataset.tc + tEl.dataset.t : cEl ? 'c' + cEl.dataset.c : wEl ? 'w' + wEl.dataset.w : 'e' + s;
+  const now = performance.now(), dbl = now - lastDown.t < 380 && lastDown.k === key;
+  lastDown = {t: dbl ? 0 : now, k: key};
+
+  if(placing){
+    const pre = snapshot();
+    const c = addComp(placing.type, s, placing.rot);
+    if(!e.shiftKey){ placing = null; markPalette(); sel.c = new Set([c.id]); sel.w = new Set(); }
+    commit(pre); renderPanel();
+    return;
+  }
+
+  if(wiring){
+    if(tEl){ finishWire({c: tEl.dataset.tc, t: +tEl.dataset.t}); return; }
+    if(wEl){ const node = splitWire(findW(wEl.dataset.w), s); finishWire({c: node.id, t: 0}); return; }
+    const last = wiring.pts.length ? wiring.pts[wiring.pts.length - 1] : endPos(byId(), wiring.from);
+    if(last && last[0] === s[0] && last[1] === s[1]){
+      if(!wiring.pts.length){ cancelModes(); return; }
+      wiring.pts.pop();
+      const node = addComp('node', s, 0);
+      finishWire({c: node.id, t: 0});
+      return;
+    }
+    wiring.pts.push(s); requestRender();
+    return;
+  }
+
+  if(hEl){
+    const w = findW(hEl.dataset.hw), i = +hEl.dataset.h;
+    if(dbl){ const pre = snapshot(); w.pts.splice(i, 1); commit(pre); renderPanel(); return; }
+    drag = {kind: 'handle', w, i, pre: snapshot(), moved: false};
+    return;
+  }
+  if(tEl){
+    startWire(tEl.dataset.tc, +tEl.dataset.t, s);
+    wiring.pre = snapshot(); wiring.downX = e.clientX; wiring.downY = e.clientY;
+    requestRender(); updateStatus();
+    return;
+  }
+  if(cEl){
+    const id = cEl.dataset.c;
+    if(dbl){ setSel([id], []); const inp = $('#props input[data-f="label"]'); if(inp){ inp.focus(); inp.select(); } return; }
+    let clickOnly = false;
+    if(e.shiftKey){ sel.c.has(id) ? sel.c.delete(id) : sel.c.add(id); }
+    else if(!sel.c.has(id)){ sel.c = new Set([id]); sel.w = new Set(); }
+    else clickOnly = true;
+    const orig = new Map([...sel.c].map(i => { const c = findC(i); return [i, [c.x, c.y]]; }));
+    const ws = internalWires().map(w => [w, w.pts.map(q => [...q])]);
+    drag = {kind: 'move', sx: p[0], sy: p[1], orig, ws, pre: snapshot(), moved: false, clickOnly, id};
+    render(); renderPanel();
+    return;
+  }
+  if(wEl){
+    const w = findW(wEl.dataset.w);
+    if(dbl){ const pre = snapshot(); const node = splitWire(w, s); sel.c = new Set([node.id]); sel.w = new Set(); commit(pre); renderPanel(); return; }
+    if(e.shiftKey){ sel.w.has(w.id) ? sel.w.delete(w.id) : sel.w.add(w.id); }
+    else { sel.c = new Set(); sel.w = new Set([w.id]); }
+    render(); renderPanel();
+    return;
+  }
+  if(!e.shiftKey){ sel.c = new Set(); sel.w = new Set(); }
+  drag = {kind: 'box', start: p, cur: null, add: e.shiftKey};
+  render(); renderPanel();
+});
+
+svg.addEventListener('pointermove', e => {
+  const p = toWorld(e), s = [sn(p[0]), sn(p[1])];
+  if(placing){ placing.cur = s; requestRender(); }
+  if(wiring){ wiring.cur = s; requestRender(); }
+  if(!drag) return;
+  if(drag.kind === 'pan'){ view.x = drag.vx + e.clientX - drag.sx; view.y = drag.vy + e.clientY - drag.sy; requestRender(); }
+  else if(drag.kind === 'move'){
+    const dx = sn(p[0] - drag.sx), dy = sn(p[1] - drag.sy);
+    if(dx || dy) drag.moved = true;
+    for(const [id, [x, y]] of drag.orig){ const c = findC(id); c.x = x + dx; c.y = y + dy; }
+    for(const [w, pts] of drag.ws) w.pts = pts.map(q => [q[0] + dx, q[1] + dy]);
+    requestRender();
+  }
+  else if(drag.kind === 'handle'){ drag.w.pts[drag.i] = s; drag.moved = true; requestRender(); }
+  else if(drag.kind === 'box'){ drag.cur = p; requestRender(); }
+});
+
+svg.addEventListener('pointerup', e => {
+  // Soltar un componente arrastrado desde la paleta
+  if(placing && placing.drag && placing.cur){
+    const pre = snapshot();
+    const c = addComp(placing.type, placing.cur, placing.rot);
+    placing = null; markPalette();
+    sel.c = new Set([c.id]); sel.w = new Set();
+    commit(pre); renderPanel();
+    return;
+  }
+  // Cablear arrastrando: soltar sobre otra terminal
+  if(wiring && wiring.downX != null && Math.hypot(e.clientX - wiring.downX, e.clientY - wiring.downY) > 8){
+    const el = document.elementFromPoint(e.clientX, e.clientY), tEl = el && el.closest && el.closest('[data-t]');
+    if(tEl){ finishWire({c: tEl.dataset.tc, t: +tEl.dataset.t}); return; }
+  }
+  if(wiring) wiring.downX = null;
+  if(!drag) return;
+  const d = drag; drag = null;
+  svg.classList.toggle('panning', spaceDown);
+  if(d.kind === 'move'){
+    if(d.moved) commit(d.pre);
+    else if(d.clickOnly && (sel.c.size > 1 || sel.w.size)){ setSel([d.id], []); }
+  }
+  else if(d.kind === 'handle' && d.moved) commit(d.pre);
+  else if(d.kind === 'box' && d.cur){
+    const [x1, y1, x2, y2] = rectOf(d.start, d.cur), m = byId();
+    const inR = q => q[0] >= x1 && q[0] <= x2 && q[1] >= y1 && q[1] <= y2;
+    for(const c of doc.comps) if(inR([c.x, c.y])) sel.c.add(c.id);
+    for(const w of doc.wires){ const P = ctrlPts(m, w); if(P && P.every(inR)) sel.w.add(w.id); }
+    renderPanel();
+  }
+  requestRender();
+});
+
+function cancelModes(){ wiring = null; placing = null; drag = null; markPalette(); requestRender(); }
+
+/* ---------- Teclado ---------- */
+document.addEventListener('keydown', e => {
+  const inField = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName);
+  if(!$('#modal').hidden){ if(e.key === 'Escape') $('#modal').hidden = true; return; }
+  if(e.key === 'Escape'){
+    if(inField){ document.activeElement.blur(); return; }
+    if(wiring || placing) cancelModes(); else setSel([], []);
+    return;
+  }
+  if(inField) return;
+  const mod = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
+  if(e.code === 'Space'){ spaceDown = true; svg.classList.add('panning'); e.preventDefault(); return; }
+  if(mod && k === 'z' && !e.shiftKey){ e.preventDefault(); undo(); return; }
+  if(mod && (k === 'y' || (k === 'z' && e.shiftKey))){ e.preventDefault(); redo(); return; }
+  if(mod && k === 'c'){ copySel(); return; }
+  if(mod && k === 'x'){ copySel(); deleteSel(); return; }
+  if(mod && k === 'v'){ paste(); return; }
+  if(mod && k === 'd'){ e.preventDefault(); copySel(); paste(); return; }
+  if(mod && k === 'a'){ e.preventDefault(); setSel(doc.comps.map(c => c.id), doc.wires.map(w => w.id)); return; }
+  if(mod && k === 's'){ e.preventDefault(); act('save'); return; }
+  if(mod) return;
+  if(k === 'delete' || k === 'backspace'){ e.preventDefault(); deleteSel(); return; }
+  if(k === 'r'){ rotateSel(e.shiftKey ? -1 : 1); return; }
+  if(k === 'f'){ act('flip'); return; }
+  const arrows = {arrowleft: [-G, 0], arrowright: [G, 0], arrowup: [0, -G], arrowdown: [0, G]};
+  if(arrows[k]){ e.preventDefault(); nudge(...arrows[k]); }
+});
+document.addEventListener('keyup', e => { if(e.code === 'Space'){ spaceDown = false; svg.classList.remove('panning'); } });
+
+/* ---------- Análisis DC: ley de Ohm + leyes de Kirchhoff (análisis nodal modificado) ---------- */
+let analysis = false, solCache = {key: null, res: null};
+const GMIN = 1e-12; // conductancia mínima a tierra para que los nodos flotantes no dejen el sistema sin solución
+const PFX = {p:1e-12, n:1e-9, u:1e-6, 'µ':1e-6, m:1e-3, k:1e3, K:1e3, M:1e6, meg:1e6, G:1e9};
+const LED_VF = {rojo:1.8, naranja:2.0, amarillo:2.1, verde:2.2, azul:3.1, blanco:3.1, infrarrojo:1.2};
+
+// "4.7kΩ" → {Ω:4700}; "12V 5W" → {V:12, W:5}; "1k" → {'':1000}
+function parseQty(str){
+  const out = {}, re = /(\d+(?:[.,]\d+)?)\s*(meg|[pnuµmkKMG])?\s*(Ω|ohms?|V|W|A|Hz|F|H)?/g;
+  let m; str = String(str || '');
+  while((m = re.exec(str))){
+    const u = (m[3] || '').replace(/ohms?/, 'Ω');
+    if(!(u in out)) out[u] = parseFloat(m[1].replace(',', '.')) * (PFX[m[2]] || 1);
+  }
+  return out;
+}
+function fmt(v, u){
+  if(!isFinite(v)) return '—';
+  const a = Math.abs(v);
+  if(a < 1e-12) return '0 ' + u;
+  for(const [f, s] of [[1e9,'G'],[1e6,'M'],[1e3,'k'],[1,''],[1e-3,'m'],[1e-6,'µ'],[1e-9,'n'],[1e-12,'p']])
+    if(a >= f * 0.9995) return (v / f).toPrecision(3).replace('-', '−') + ' ' + s + u;
+  return v.toExponential(2) + ' ' + u;
+}
+function gauss(A, b){
+  const n = b.length;
+  for(let c = 0; c < n; c++){
+    let p = c;
+    for(let r = c + 1; r < n; r++) if(Math.abs(A[r][c]) > Math.abs(A[p][c])) p = r;
+    if(Math.abs(A[p][c]) < 1e-14) return null;
+    [A[c], A[p]] = [A[p], A[c]]; [b[c], b[p]] = [b[p], b[c]];
+    for(let r = c + 1; r < n; r++){
+      const f = A[r][c] / A[c][c]; if(!f) continue;
+      for(let k = c; k < n; k++) A[r][k] -= f * A[c][k];
+      b[r] -= f * b[c];
+    }
+  }
+  const x = new Array(n);
+  for(let r = n - 1; r >= 0; r--){ let s = b[r]; for(let k = r + 1; k < n; k++) s -= A[r][k] * x[k]; x[r] = s / A[r][r]; }
+  return x;
+}
+
+function solveCircuit(){
+  const uf = new Map(), warn = [];
+  const find = k => { if(!uf.has(k)) uf.set(k, k); let r = k; while(uf.get(r) !== r) r = uf.get(r); uf.set(k, r); return r; };
+  const unite = (a, b) => { a = find(a); b = find(b); if(a !== b) uf.set(a, b); };
+  const tk = (id, t) => id + ':' + t;
+  for(const w of doc.wires) unite(tk(w.a.c, w.a.t), tk(w.b.c, w.b.t));
+  let gKey = null;
+  for(const c of doc.comps) if(c.type === 'ground'){ const k = tk(c.id, 0); if(gKey) unite(gKey, k); else gKey = k; }
+
+  // Nodos eléctricos (conjuntos de terminales unidas por cables)
+  const netsMap = new Map();
+  for(const c of doc.comps) T[c.type].t.forEach((_, i) => {
+    const r = find(tk(c.id, i));
+    if(!netsMap.has(r)) netsMap.set(r, {key: r, conns: []});
+    if(c.type !== 'node' && c.type !== 'ground') netsMap.get(r).conns.push({c, t: i});
+  });
+  const net = (c, t) => find(tk(c.id, t));
+
+  // Ramas: R = resistencia, V = fuente de voltaje (o corto de 0 V), I = fuente de corriente, D = diodo, open = no conduce
+  const br = [];
+  let hasSrc = false, acWarn = false, trWarn = false;
+  for(const c of doc.comps){
+    const d = T[c.type], q = parseQty(c.value), nm = c.label || d.n;
+    const a = d.t.length >= 2 ? net(c, 0) : null, b = d.t.length >= 2 ? net(c, 1) : null;
+    const R = q['Ω'] ?? q[''];
+    const add = o => br.push({c, name: nm, a, b, ...o});
+    switch(c.type){
+      case 'resistor':
+        if(R > 0) add({kind: 'R', val: R}); else { warn.push(`${nm}: resistencia no válida ("${c.value}").`); add({kind: 'open'}); }
+        break;
+      case 'lamp': case 'motor': {
+        const r = q.V && q.W ? q.V * q.V / q.W : R;
+        if(r > 0) add({kind: 'R', val: r}); else { warn.push(`${nm}: escribe su resistencia (p. ej. 10Ω) o voltaje y potencia (p. ej. 12V 5W).`); add({kind: 'open'}); }
+        break;
+      }
+      case 'pot': {
+        if(!(R > 0)){ warn.push(`${nm}: resistencia no válida ("${c.value}").`); break; }
+        const pos = Math.min(1, Math.max(0, (c.pos ?? 50) / 100)), w = net(c, 2);
+        br.push({c, name: nm + ' (1–cursor)', kind: 'R', a, b: w, val: Math.max(R * pos, 1e-3), sub: 0});
+        br.push({c, name: nm + ' (cursor–2)', kind: 'R', a: w, b, val: Math.max(R * (1 - pos), 1e-3), sub: 1});
+        break;
+      }
+      case 'acsource':
+        if(!acWarn){ warn.push('Las fuentes AC se analizan como DC usando su voltaje.'); acWarn = true; }
+        // continúa como fuente DC
+      case 'vsource': case 'battery': {
+        const V = q.V ?? q[''];
+        if(V == null){ warn.push(`${nm}: voltaje no válido ("${c.value}").`); add({kind: 'open'}); }
+        else { add({kind: 'V', val: V}); hasSrc = true; }
+        break;
+      }
+      case 'isource': {
+        const I = q.A ?? q[''];
+        if(I == null){ warn.push(`${nm}: corriente no válida ("${c.value}").`); add({kind: 'open'}); }
+        else { add({kind: 'I', val: I}); hasSrc = true; }
+        break;
+      }
+      case 'inductor': case 'ammeter': add({kind: 'V', val: 0, zero: true}); break;
+      case 'switch': case 'button': add(c.closed ? {kind: 'V', val: 0, zero: true} : {kind: 'open'}); break;
+      case 'capacitor': case 'ecap': case 'voltmeter': add({kind: 'open'}); break;
+      case 'zener': add({kind: 'D', vf: 0.7, vz: q.V > 0 ? q.V : 5.1}); break;
+      case 'diode': case 'led': {
+        let vf = q.V;
+        if(!(vf > 0)) vf = c.type === 'led' ? (LED_VF[(c.value || '').trim().toLowerCase()] ?? 2.0) : (/581[79]|schottky/i.test(c.value || '') ? 0.3 : 0.7);
+        add({kind: 'D', vf});
+        break;
+      }
+      case 'npn': case 'pnp':
+        if(!trWarn){ warn.push('Los transistores todavía no se simulan; se toman como desconectados.'); trWarn = true; }
+        break;
+    }
+  }
+  if(!hasSrc) return {error: 'Agrega al menos una fuente (batería, fuente DC o fuente de corriente) y conéctala al circuito.'};
+  for(const b of br) if(b.kind === 'V' && !b.zero && b.a === b.b) return {error: `${b.name} está en cortocircuito: sus dos terminales están unidas por un cable.`};
+
+  let ref;
+  if(gKey) ref = find(gKey);
+  else {
+    const src = br.find(b => b.kind === 'V' && !b.zero) || br.find(b => b.kind === 'I');
+    ref = src.b;
+    warn.push(`No hay tierra: se tomó la terminal negativa de ${src.name} como 0 V.`);
+  }
+
+  const nets = [...netsMap.values()];
+  let k = 0;
+  for(const n of nets){
+    n.isRef = n.key === ref;
+    n.used = n.isRef || n.conns.length >= 2;
+    if(n.isRef){ n.name = gKey ? 'Tierra' : 'Ref'; n.vn = '0'; }
+    else if(n.used){ k++; n.name = 'N' + k; n.vn = 'V' + k; }
+    else { n.name = 'libre'; n.vn = 'V?'; }
+  }
+  const idx = new Map(); let n = 0;
+  for(const nt of nets) if(!nt.isRef) idx.set(nt.key, n++);
+  const I = key => key === ref ? -1 : idx.get(key);
+
+  // Diodos: modelo de caída fija; se itera hasta que cada diodo esté en un estado coherente
+  const diodes = br.filter(b => b.kind === 'D');
+  diodes.forEach(d => d.st = 'off');
+  let x, it = 0, converged = false;
+  for(; it < 80; it++){
+    const vs = br.filter(b => (b.kind === 'V' && b.a !== b.b) || (b.kind === 'D' && b.st !== 'off' && b.a !== b.b));
+    const N = n + vs.length;
+    const A = Array.from({length: N}, () => new Array(N).fill(0)), z = new Array(N).fill(0);
+    for(let i = 0; i < n; i++) A[i][i] += GMIN;
+    for(const b of br){
+      const i = I(b.a), j = I(b.b);
+      if(b.kind === 'R'){
+        const g = 1 / b.val;
+        if(i >= 0) A[i][i] += g;
+        if(j >= 0) A[j][j] += g;
+        if(i >= 0 && j >= 0){ A[i][j] -= g; A[j][i] -= g; }
+      } else if(b.kind === 'I'){ // la corriente sale por la terminal + (flecha)
+        if(i >= 0) z[i] += b.val;
+        if(j >= 0) z[j] -= b.val;
+      }
+    }
+    vs.forEach((b, s) => {
+      const row = n + s;
+      let p = b.a, q = b.b, E = b.val;
+      if(b.kind === 'D'){ if(b.st === 'fwd') E = b.vf; else { p = b.b; q = b.a; E = b.vz; } }
+      const i = I(p), j = I(q);
+      if(i >= 0){ A[i][row] += 1; A[row][i] += 1; }
+      if(j >= 0){ A[j][row] -= 1; A[row][j] -= 1; }
+      z[row] = E;
+    });
+    x = gauss(A, z);
+    if(!x) return {error: 'El circuito no tiene solución única. Revisa si hay fuentes de voltaje en paralelo con distinto valor, o un lazo cerrado solo de amperímetros, inductores o interruptores cerrados.'};
+    vs.forEach((b, s) => b.j = x[n + s]);
+    const Vt = key => key === ref ? 0 : x[idx.get(key)];
+    let changed = false;
+    for(const d of diodes){
+      const vd = Vt(d.a) - Vt(d.b);
+      if(d.st === 'off'){
+        if(vd > d.vf + 1e-9){ d.st = 'fwd'; changed = true; }
+        else if(d.vz && -vd > d.vz + 1e-9){ d.st = 'rev'; changed = true; }
+      } else if(d.j < -1e-12){ d.st = 'off'; changed = true; }
+    }
+    if(!changed){ converged = true; break; }
+  }
+  if(!converged) warn.push('Los diodos no llegaron a un estado estable; los resultados pueden ser aproximados.');
+
+  const V = key => key === ref ? 0 : x[idx.get(key)];
+  nets.forEach(nt => nt.v = V(nt.key));
+  for(const b of br){
+    b.v = V(b.a) - V(b.b); // voltaje de la terminal 1 respecto a la 2
+    if(b.kind === 'R') b.i = b.v / b.val;
+    else if(b.kind === 'V') b.i = b.a === b.b ? 0 : b.j;
+    else if(b.kind === 'I') b.i = -b.val;
+    else if(b.kind === 'D') b.i = b.st === 'off' ? 0 : b.st === 'fwd' ? b.j : -b.j;
+    else b.i = 0;
+    b.pw = b.v * b.i; // positiva = consume, negativa = entrega
+  }
+
+  const comp = new Map();
+  for(const b of br){ const r = comp.get(b.c.id) || {brs: []}; r.brs.push(b); comp.set(b.c.id, r); }
+  for(const r of comp.values()){
+    const c = r.brs[0].c;
+    r.v = V(net(c, 0)) - V(net(c, 1));
+    r.i = r.brs[0].i;
+    r.pw = r.brs.reduce((s, b) => s + b.pw, 0);
+  }
+
+  // 1ra ley de Kirchhoff: corrientes que salen de cada nodo
+  const kcl = [];
+  for(const nt of nets){
+    if(!nt.used) continue;
+    const terms = [];
+    for(const b of br){
+      if(b.kind === 'open' || b.a === b.b) continue;
+      if(b.a === nt.key) terms.push({b, out: b.i, sgn: 1});
+      if(b.b === nt.key) terms.push({b, out: -b.i, sgn: -1});
+    }
+    if(terms.length >= 2) kcl.push({n: nt, terms});
+  }
+
+  // 2da ley de Kirchhoff: mallas independientes (una por cada rama fuera del árbol generador)
+  const edges = br.filter(b => b.kind !== 'open' && b.a !== b.b);
+  const adj = new Map();
+  edges.forEach((e, i) => { for(const v of [e.a, e.b]){ if(!adj.has(v)) adj.set(v, []); adj.get(v).push(i); } });
+  const par = new Map(), depth = new Map(), tree = new Set();
+  for(const root of [ref, ...nets.map(nt => nt.key)]){
+    if(par.has(root) || !adj.has(root)) continue;
+    par.set(root, null); depth.set(root, 0);
+    const queue = [root];
+    while(queue.length){
+      const u = queue.shift();
+      for(const i of adj.get(u)){
+        const e = edges[i], o = e.a === u ? e.b : e.a;
+        if(!par.has(o)){ par.set(o, {u, i}); depth.set(o, depth.get(u) + 1); tree.add(i); queue.push(o); }
+      }
+    }
+  }
+  const loops = [];
+  edges.forEach((e, i) => {
+    if(tree.has(i) || loops.length >= 40) return;
+    const up = [], down = [];
+    let p = e.b, q = e.a;
+    while(p !== q){
+      if(depth.get(p) >= depth.get(q)){ const s = par.get(p); up.push({e: edges[s.i], from: p, to: s.u}); p = s.u; }
+      else { const s = par.get(q); down.push({e: edges[s.i], from: s.u, to: q}); q = s.u; }
+    }
+    const steps = [{e, from: e.a, to: e.b}, ...up, ...down.reverse()];
+    steps.forEach(s => s.drop = V(s.from) - V(s.to));
+    loops.push(steps);
+  });
+
+  const netBy = new Map(nets.map(nt => [nt.key, nt]));
+  return {ref, nets, netBy, br, comp, kcl, loops, warn, V, name: key => netBy.get(key)?.name ?? '?', netOfTerm: (id, t) => find(tk(id, t))};
+}
+
+function getSol(){
+  const key = snapshot();
+  if(solCache.key !== key){
+    let res;
+    try{ res = solveCircuit(); }catch(err){ res = {error: 'No se pudo resolver: ' + err.message}; }
+    solCache = {key, res};
+  }
+  return solCache.res;
+}
+
+// Flecha con la dirección real de la corriente, en coordenadas del lienzo
+function arrowFor(c, i, ta = 0, tb = 1){
+  if(Math.abs(i) < 1e-12) return '';
+  let [x1, y1] = termPos(c, ta), [x2, y2] = termPos(c, tb);
+  let dx = x2 - x1, dy = y2 - y1;
+  if(i < 0){ dx = -dx; dy = -dy; }
+  return (Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? '→' : '←') : (dy > 0 ? '↓' : '↑')) + ' ';
+}
+function annotation(c, r){
+  const A = v => fmt(Math.abs(v), 'A'), arr = arrowFor(c, r.i), b = r.brs[0];
+  switch(c.type){
+    case 'resistor': case 'lamp': case 'motor': return b.kind === 'open' ? '' : `${arr}${A(r.i)} · ${fmt(Math.abs(r.v), 'V')}`;
+    case 'pot': return r.brs.length === 2 ? `${A(r.brs[0].i)} / ${A(r.brs[1].i)}` : '';
+    case 'vsource': case 'battery': case 'acsource': case 'inductor': case 'ammeter': return arr + A(r.i);
+    case 'isource': return fmt(r.v, 'V');
+    case 'voltmeter': case 'capacitor': case 'ecap': return fmt(r.v, 'V');
+    case 'switch': case 'button': return c.closed ? arr + A(r.i) : 'abierto · ' + fmt(Math.abs(r.v), 'V');
+    case 'led': return b.st === 'off' ? 'apagado' : `encendido ${arr}${A(r.i)}`;
+    case 'diode': case 'zener': return b.st === 'off' ? 'no conduce' : arr + A(r.i);
+  }
+  return '';
+}
+function overlaySVG(res){
+  if(!res || res.error) return '';
+  const m = byId(), parts = [], best = new Map();
+  for(const w of doc.wires){
+    const P = ctrlPts(m, w); if(!P) continue;
+    const E = expand(P, w.flip), key = res.netOfTerm(w.a.c, w.a.t);
+    for(let i = 0; i < E.length - 1; i++){
+      const L = Math.abs(E[i+1][0] - E[i][0]) + Math.abs(E[i+1][1] - E[i][1]);
+      if(!best.has(key) || L > best.get(key).L) best.set(key, {L, p: [(E[i][0] + E[i+1][0]) / 2, (E[i][1] + E[i+1][1]) / 2]});
+    }
+  }
+  for(const c of doc.comps){
+    const r = res.comp.get(c.id); if(!r) continue;
+    const t = annotation(c, r); if(!t) continue;
+    const d = T[c.type];
+    const off = d.ap ? rotP(d.ap, c.rot || 0) : rotP(d.lp, c.rot || 0).map(v => -v);
+    parts.push(`<g transform="translate(${c.x} ${c.y})">${linesSVG([t], off, 'res')}</g>`);
+  }
+  for(const [key, {p}] of best){
+    const nt = res.netBy.get(key); if(!nt || !nt.used) continue;
+    const t = `${nt.name} · ${fmt(nt.v, 'V')}`, w = t.length * 6.4 + 12;
+    parts.push(`<g class="ntag" transform="translate(${p[0]} ${p[1]})"><rect x="${-w/2}" y="-9" width="${w}" height="18" rx="9"/><text y="0.5">${esc(t)}</text></g>`);
+  }
+  return parts.join('');
+}
+
+function termName(c, t){ const tn = T[c.type].tn; return tn ? tn[t] : String(t + 1); }
+function compResultHTML(res, c){
+  const r = res.comp.get(c.id);
+  if(!r) return c.type === 'ground' || c.type === 'node'
+    ? `<div class="card"><span class="k">Voltaje del nodo</span><br><b>${fmt(res.V(res.netOfTerm(c.id, 0)), 'V')}</b> (${res.name(res.netOfTerm(c.id, 0))})</div>`
+    : '<div class="card k">Este componente no participa en el análisis.</div>';
+  const b = r.brs[0], d = T[c.type], na = res.name(b.a), nb = res.name(b.b);
+  const rows = [];
+  const tA = termName(c, 0), tB = termName(c, 1);
+  rows.push(['Entre', `${na} (${tA}) y ${nb} (${tB})`]);
+  rows.push(['Voltaje', `${fmt(r.v, 'V')} <span class="k">(${tA} respecto a ${tB})</span>`]);
+  if(c.type === 'pot'){
+    r.brs.forEach(s => rows.push([s.name.replace(/^.*\(/, '(').replace(/[()]/g, ''), `${fmt(Math.abs(s.i), 'A')} · ${fmt(Math.abs(s.v), 'V')}`]));
+  } else if(b.kind !== 'open' || c.type === 'isource'){
+    const dir = Math.abs(r.i) < 1e-12 ? '' : ` <span class="k">(de ${r.i > 0 ? na : nb} a ${r.i > 0 ? nb : na})</span>`;
+    rows.push(['Corriente', fmt(Math.abs(r.i), 'A') + dir]);
+  }
+  if(Math.abs(r.pw) > 1e-15) rows.push(['Potencia', `${fmt(Math.abs(r.pw), 'W')} <span class="k">(${r.pw > 0 ? 'consume' : 'entrega'})</span>`]);
+  if(b.kind === 'D') rows.push(['Estado', b.st === 'off' ? 'no conduce' : b.st === 'fwd' ? `conduce (caída ${fmt(b.vf, 'V')})` : `ruptura Zener (${fmt(b.vz, 'V')})`]);
+  let ohm = '';
+  if(b.kind === 'R' && c.type !== 'pot'){
+    ohm = `<div class="card"><b>Ley de Ohm</b><div class="eq">V = I × R</div><div class="eq">${fmt(Math.abs(r.v), 'V')} = ${fmt(Math.abs(r.i), 'A')} × ${fmt(b.val, 'Ω')} <span class="ok">✓</span></div>${c.type !== 'resistor' ? `<div class="k">R equivalente calculada de "${esc(c.value)}"</div>` : ''}</div>`;
+  }
+  return `<div class="card"><b>Resultados</b><div class="kv">${rows.map(([k, v]) => `<span>${k}</span><span>${v}</span>`).join('')}</div></div>${ohm}`;
+}
+function summaryHTML(res){
+  if(res.error) return `<div class="err">${esc(res.error)}</div>`;
+  const sup = res.br.reduce((s, b) => s + (b.pw < 0 ? -b.pw : 0), 0), con = res.br.reduce((s, b) => s + (b.pw > 0 ? b.pw : 0), 0);
+  return `<div class="card"><b>Circuito resuelto (DC)</b><div class="kv">
+      <span>Nodos</span><span>${res.nets.filter(n => n.used).length}</span>
+      <span>Mallas</span><span>${res.loops.length}</span>
+      <span>Entregada</span><span>${fmt(sup, 'W')}</span>
+      <span>Consumida</span><span>${fmt(con, 'W')}</span></div>
+      <span class="k">Selecciona un componente para ver su voltaje, corriente y potencia.</span></div>
+    ${res.warn.map(w => `<div class="warn">⚠ ${esc(w)}</div>`).join('')}
+    <button class="primary wide" data-a="report">Ver análisis completo</button>`;
+}
+function updatePres(){
+  const el = $('#pres'); if(!el) return;
+  if(!analysis){ el.innerHTML = ''; return; }
+  const res = getSol(), cs = [...sel.c];
+  if(cs.length === 1 && !sel.w.size && !res.error){ const c = findC(cs[0]); if(c){ el.innerHTML = compResultHTML(res, c); return; } }
+  if(sel.w.size === 1 && !cs.length && !res.error){
+    const w = findW([...sel.w][0]);
+    if(w){ const key = res.netOfTerm(w.a.c, w.a.t); el.innerHTML = `<div class="card"><span class="k">Este cable pertenece al nodo</span><br><b>${res.name(key)}</b> · ${fmt(res.V(key), 'V')}</div>`; return; }
+  }
+  el.innerHTML = summaryHTML(res);
+}
+
+function reportHTML(res){
+  if(res.error) return `<p class="err">${esc(res.error)}</p>`;
+  const vn = key => res.netBy.get(key).vn, h = [];
+  const who = ({c, t}) => `${esc(c.label || T[c.type].n)} <span class="k">(${termName(c, t)})</span>`;
+  if(res.warn.length) h.push(res.warn.map(w => `<div class="warn">⚠ ${esc(w)}</div>`).join(''));
+  h.push(`<p class="k">Método: análisis nodal. En cada nodo se aplica la 1ra ley de Kirchhoff; la corriente de cada resistencia se obtiene con la ley de Ohm, I = (V<sub>a</sub> − V<sub>b</sub>) / R, y cada fuente de voltaje aporta una ecuación de la 2da ley. Es un análisis en corriente directa: los capacitores son circuito abierto, los inductores y amperímetros un corto, y los diodos tienen una caída fija cuando conducen.</p>`);
+
+  h.push('<h3>Voltajes de nodo</h3><div class="tw"><table><tr><th>Nodo</th><th>Voltaje</th><th>Conectado a</th></tr>' +
+    res.nets.filter(n => n.used).map(n => `<tr><td><b>${n.name}</b> <span class="k">${n.vn}</span></td><td>${fmt(n.v, 'V')}</td><td>${n.conns.map(who).join(', ')}</td></tr>`).join('') + '</table></div>');
+
+  const rs = res.br.filter(b => b.kind === 'R');
+  if(rs.length){
+    h.push('<h3>Ley de Ohm <small>V = I × R</small></h3><div class="tw"><table><tr><th>Elemento</th><th>R</th><th>Corriente</th><th>V = I × R</th><th>Potencia P = V × I</th></tr>' +
+      rs.map(b => `<tr><td><b>${esc(b.name)}</b></td><td>${fmt(b.val, 'Ω')}</td><td>${fmt(Math.abs(b.i), 'A')}</td><td class="eq">${fmt(Math.abs(b.i), 'A')} × ${fmt(b.val, 'Ω')} = ${fmt(Math.abs(b.v), 'V')}</td><td>${fmt(Math.abs(b.pw), 'W')}</td></tr>`).join('') + '</table></div>');
+  }
+
+  h.push('<h3>1ra ley de Kirchhoff <small>(corrientes) — en cada nodo, lo que entra es igual a lo que sale</small></h3>');
+  if(!res.kcl.length) h.push('<p class="k">No hay nodos con dos o más ramas conductoras.</p>');
+  for(const {n, terms} of res.kcl){
+    const expr = terms.map(({b, sgn}) => {
+      if(b.kind === 'R'){ const [p, q] = sgn > 0 ? [b.a, b.b] : [b.b, b.a]; return `(${vn(p)} − ${vn(q)}) / ${fmt(b.val, 'Ω')}`; }
+      if(b.kind === 'I') return fmt(sgn > 0 ? -b.val : b.val, 'A');
+      return (sgn > 0 ? '' : '−') + `I<sub>${esc(b.name)}</sub>`;
+    }).join(' + ').replace(/\+ −/g, '− ');
+    const inn = terms.filter(t => t.out < -1e-12), out = terms.filter(t => t.out > 1e-12);
+    const sIn = inn.reduce((s, t) => s - t.out, 0), sOut = out.reduce((s, t) => s + t.out, 0);
+    const maxI = Math.max(1e-12, ...terms.map(t => Math.abs(t.out)));
+    const ok = Math.abs(sIn - sOut) <= maxI * 1e-6 + 1e-11;
+    const lst = arr => arr.length ? arr.map(t => `${esc(t.b.name)} ${fmt(Math.abs(t.out), 'A')}`).join(', ') : '—';
+    h.push(`<div class="card"><b>Nodo ${n.name}</b> <span class="k">(${fmt(n.v, 'V')})</span>
+      <div class="kv"><span>Entran</span><span>${lst(inn)}</span><span>Salen</span><span>${lst(out)}</span></div>
+      <div class="eq">Ecuación: ${expr} = 0</div>
+      <div class="eq">Σ entran = ${fmt(sIn, 'A')} &nbsp;·&nbsp; Σ salen = ${fmt(sOut, 'A')} ${ok ? '<span class="ok">✓ se cumple</span>' : '<span class="bad">✗</span>'}</div></div>`);
+  }
+
+  h.push('<h3>2da ley de Kirchhoff <small>(voltajes) — en cada malla, la suma de voltajes es cero</small></h3>');
+  if(!res.loops.length) h.push('<p class="k">El circuito no tiene mallas cerradas.</p>');
+  res.loops.forEach((steps, i) => {
+    const path = [res.name(steps[0].from), ...steps.map(s => `${esc(s.e.name)} → ${res.name(s.to)}`)].join(' → ');
+    const sum = steps.reduce((s, x) => s + x.drop, 0);
+    const maxV = Math.max(1e-12, ...steps.map(s => Math.abs(s.drop)));
+    const ok = Math.abs(sum) <= maxV * 1e-6 + 1e-9;
+    h.push(`<div class="card"><b>Malla ${i + 1}</b>: <span class="k">${path}</span>
+      <div class="eq">${steps.map(s => `${esc(s.e.name)}: ${s.drop >= 0 ? '+' : ''}${fmt(s.drop, 'V')}`).join(' &nbsp; ')}</div>
+      <div class="eq">Σ V = ${fmt(Math.abs(sum) <= maxV * 1e-6 + 1e-9 ? 0 : sum, 'V')} ${ok ? '<span class="ok">✓ se cumple</span>' : '<span class="bad">✗</span>'}</div>
+      <div class="k" style="font-size:12px">+ = caída de voltaje en el sentido del recorrido, − = subida (como al cruzar una fuente de − a +).</div></div>`);
+  });
+
+  const pw = [...res.comp.values()].filter(r => Math.abs(r.pw) > 1e-15);
+  const sup = pw.reduce((s, r) => s + (r.pw < 0 ? -r.pw : 0), 0), con = pw.reduce((s, r) => s + (r.pw > 0 ? r.pw : 0), 0);
+  h.push('<h3>Balance de potencia <small>lo que entregan las fuentes = lo que consumen los demás</small></h3><div class="tw"><table><tr><th>Elemento</th><th>Potencia</th><th></th></tr>' +
+    pw.map(r => `<tr><td><b>${esc(r.brs[0].c.label || T[r.brs[0].c.type].n)}</b></td><td>${fmt(Math.abs(r.pw), 'W')}</td><td>${r.pw > 0 ? 'consume' : '<span class="ok">entrega</span>'}</td></tr>`).join('') +
+    `<tr><td><b>Total</b></td><td colspan="2">Entregada ${fmt(sup, 'W')} · Consumida ${fmt(con, 'W')} ${Math.abs(sup - con) <= Math.max(sup, con) * 1e-6 + 1e-12 ? '<span class="ok">✓</span>' : ''}</td></tr></table></div>`);
+  return h.join('');
+}
+function openReport(){ $('#mbody').innerHTML = reportHTML(getSol()); $('#modal').hidden = false; }
+
+/* ---------- Paleta ---------- */
+function preview(k){
+  if(k === 'text') return '<text class="glyph" x="0" y="2" style="font-size:30px">Aa</text>';
+  const d = T[k];
+  return `<g class="sym">${k === 'node' ? '<circle class="f" r="7"/>' : symOf({type: k})}</g>${d.gl ? `<text class="glyph" x="0" y="1">${d.gl}</text>` : ''}`;
+}
+function buildPalette(){
+  const groups = {};
+  for(const [k, d] of Object.entries(T)) (groups[d.g] ??= []).push(k);
+  $('#palette').innerHTML = Object.entries(groups).map(([g, ks]) => `<div class="pg"><h4>${g}</h4><div class="pitems">${
+    ks.map(k => `<button class="pitem" data-type="${k}" title="${T[k].n} — clic y luego clic en el lienzo, o arrástralo"><svg viewBox="-48 -48 96 96">${preview(k)}</svg><span>${T[k].n}</span></button>`).join('')
+  }</div></div>`).join('');
+}
+function markPalette(){
+  document.querySelectorAll('.pitem').forEach(b => b.classList.toggle('active', !!placing && b.dataset.type === placing.type));
+  updateStatus();
+}
+$('#palette').addEventListener('pointerdown', e => {
+  const b = e.target.closest('.pitem'); if(!b) return;
+  e.preventDefault();
+  wiring = null;
+  placing = {type: b.dataset.type, rot: 0, cur: null, drag: true};
+  markPalette();
+});
+document.addEventListener('pointerup', e => { if(placing && !svg.contains(e.target)) placing.drag = false; });
+
+/* ---------- Panel de propiedades ---------- */
+function renderPanel(){
+  const P = $('#props'), cs = [...sel.c], ws = [...sel.w];
+  if(cs.length === 1 && !ws.length){
+    const c = findC(cs[0]); if(!c){ P.innerHTML = ''; return; }
+    const d = T[c.type], isText = c.type === 'text';
+    $('#vlist').innerHTML = (d.vals || []).map(v => `<option value="${esc(v)}">`).join('');
+    P.innerHTML = `<h3>${d.n}</h3>
+      <label class="fld"><span>${isText ? 'Texto' : 'Etiqueta'}</span><input data-f="label" value="${esc(c.label)}"></label>
+      ${d.nv ? '' : `<label class="fld"><span>Valor</span><input data-f="value" list="vlist" value="${esc(c.value)}" placeholder="p. ej. ${esc(d.v || '')}"></label>`}
+      ${c.type === 'switch' || c.type === 'button' ? `<label class="chk"><input type="checkbox" data-f="closed" ${c.closed ? 'checked' : ''}> Cerrado (deja pasar corriente)</label>` : ''}
+      ${c.type === 'pot' ? `<label class="fld"><span>Posición del cursor: <b id="posLbl">${c.pos ?? 50}%</b></span><input type="range" data-f="pos" min="0" max="100" value="${c.pos ?? 50}"></label>` : ''}
+      ${isText ? '' : `<label class="chk"><input type="checkbox" data-f="hide" ${c.hide ? '' : 'checked'}> Mostrar etiqueta y valor</label>`}
+      ${isText ? '' : '<div class="row"><button data-a="rotl">⟲ Rotar</button><button data-a="rotr">⟳ Rotar</button></div>'}
+      <button class="danger" data-a="del">Eliminar</button>
+      <div id="pres"></div>
+      <p class="help">Doble clic en un componente para editar su etiqueta. Usa <kbd>R</kbd> para rotar y las flechas para moverlo.</p>`;
+  } else if(ws.length === 1 && !cs.length){
+    const w = findW(ws[0]);
+    P.innerHTML = `<h3>Cable</h3>
+      <p class="help">Dobleces: ${w.pts.length}</p>
+      <div class="row"><button data-a="flip" title="F">Invertir codo</button></div>
+      <div class="row"><button data-a="straight">Quitar dobleces</button></div>
+      <button class="danger" data-a="del">Eliminar</button>
+      <div id="pres"></div>
+      <p class="help">Arrastra los cuadritos para mover los dobleces; doble clic en uno lo quita. Doble clic sobre el cable agrega un nodo para sacar una derivación.</p>`;
+  } else if(cs.length || ws.length){
+    P.innerHTML = `<h3>Selección</h3>
+      <div class="stats"><div><b>${cs.length}</b>componentes</div><div><b>${ws.length}</b>cables</div></div>
+      <div class="row"><button data-a="rotl">⟲ Rotar</button><button data-a="rotr">⟳ Rotar</button></div>
+      <div class="row"><button data-a="dup">Duplicar</button></div>
+      <button class="danger" data-a="del">Eliminar</button>
+      <div id="pres"></div>`;
+  } else {
+    P.innerHTML = `<h3>Diagrama</h3>
+      <div id="pres"></div>
+      ${analysis ? '' : '<button class="primary wide" data-a="solve" style="margin:0 0 12px">▶ Resolver circuito</button>'}
+      <div class="stats"><div><b>${doc.comps.filter(c => c.type !== 'node' && c.type !== 'text').length}</b>componentes</div><div><b>${doc.wires.length}</b>cables</div></div>
+      <div class="help">
+        <b>Cómo se usa</b>
+        <ul>
+          <li>Elige un componente de la izquierda y haz clic en el lienzo (o arrástralo).</li>
+          <li>Haz clic en una terminal <span style="color:var(--term)">○</span> y luego en otra para unirlas con un cable. Los clics intermedios crean dobleces.</li>
+          <li>Termina un cable sobre otro cable para crear un nodo de unión.</li>
+          <li>Arrastra en un área vacía para seleccionar varios.</li>
+          <li>Pulsa <b>Resolver</b> para calcular voltajes y corrientes, y <b>Análisis</b> para ver la ley de Ohm y las dos leyes de Kirchhoff paso a paso.</li>
+        </ul>
+        <b>Atajos</b>
+        <ul>
+          <li><kbd>R</kbd> rotar · <kbd>Supr</kbd> eliminar</li>
+          <li><kbd>Ctrl</kbd>+<kbd>Z</kbd> / <kbd>Y</kbd> deshacer / rehacer</li>
+          <li><kbd>Ctrl</kbd>+<kbd>C</kbd> <kbd>V</kbd> <kbd>D</kbd> copiar, pegar, duplicar</li>
+          <li><kbd>Esc</kbd> cancelar · flechas mover</li>
+        </ul>
+        Tu trabajo se guarda solo en este navegador. Usa <b>Guardar</b> para descargar el archivo .json y <b>Abrir</b> para cargarlo después.
+      </div>`;
+  }
+  updatePres();
+}
+$('#props').addEventListener('input', e => {
+  const el = e.target, f = el.dataset.f; if(!f) return;
+  const c = findC([...sel.c][0]); if(!c) return;
+  if(preEdit == null) preEdit = snapshot();
+  if(f === 'hide') c.hide = !el.checked;
+  else if(f === 'closed') c.closed = el.checked;
+  else if(f === 'pos'){ c.pos = +el.value; $('#posLbl').textContent = c.pos + '%'; }
+  else c[f] = el.value;
+  render();
+});
+$('#props').addEventListener('change', () => { commit(preEdit); preEdit = null; });
+
+/* ---------- Acciones ---------- */
+function download(name, blob){
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+const EXPORT_CSS = `.sym *{fill:none;stroke:#1d2433;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}.sym .f{fill:#1d2433}.sym .thick{stroke-width:3.5}
+.glyph{font:600 15px Arial,sans-serif;fill:#1d2433;text-anchor:middle;dominant-baseline:central}.lbl{font:13px Arial,sans-serif;fill:#1d2433}.lbl.txt{font-size:15px}
+.wl{fill:none;stroke:#1d2433;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}.dot{fill:#1d2433}
+.res{font:600 12px Arial,sans-serif;fill:#15803d}.ntag rect{fill:#2563eb}.ntag text{font:600 11px Arial,sans-serif;fill:#fff;text-anchor:middle;dominant-baseline:central}`;
+function exportSVGString(){
+  const b = bounds() || [0, 0, 200, 100], m = analysis ? 50 : 30;
+  const x = b[0] - m, y = b[1] - m, w = b[2] - b[0] + 2 * m, h = b[3] - b[1] + 2 * m;
+  const keep = sel; sel = {c: new Set(), w: new Set()};
+  const body = contentSVG(true) + (analysis ? overlaySVG(getSol()) : ''); sel = keep;
+  return {w, h, s: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${x} ${y} ${w} ${h}" width="${w}" height="${h}"><style>${EXPORT_CSS}</style><rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#fff"/>${body}</svg>`};
+}
+function act(a){
+  switch(a){
+    case 'new':
+      if(doc.comps.length && !confirm('¿Borrar el diagrama actual? (Puedes deshacerlo con Ctrl+Z)')) return;
+      { const pre = snapshot(); doc = {comps: [], wires: []}; sel = {c: new Set(), w: new Set()}; commit(pre); renderPanel(); fit(); }
+      break;
+    case 'open': $('#fileIn').click(); break;
+    case 'save': download('circuito.json', new Blob([JSON.stringify(doc, null, 1)], {type: 'application/json'})); break;
+    case 'svg': download('circuito.svg', new Blob([exportSVGString().s], {type: 'image/svg+xml'})); break;
+    case 'png': {
+      const {w, h, s} = exportSVGString(), img = new Image(), sc = 2;
+      img.onload = () => {
+        const cv = document.createElement('canvas'); cv.width = w * sc; cv.height = h * sc;
+        const ctx = cv.getContext('2d'); ctx.drawImage(img, 0, 0, w * sc, h * sc);
+        cv.toBlob(bl => download('circuito.png', bl), 'image/png');
+      };
+      img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(s);
+      break;
+    }
+    case 'undo': undo(); break;
+    case 'redo': redo(); break;
+    case 'rotr': rotateSel(1); break;
+    case 'rotl': rotateSel(-1); break;
+    case 'del': deleteSel(); break;
+    case 'dup': copySel(); paste(); break;
+    case 'flip': case 'straight': {
+      const ws = [...sel.w].map(findW).filter(Boolean); if(!ws.length) return;
+      const pre = snapshot();
+      ws.forEach(w => a === 'flip' ? (w.flip = !w.flip) : (w.pts = []));
+      commit(pre); renderPanel(); break;
+    }
+    case 'zin': case 'zout': { const r = svg.getBoundingClientRect(); zoomAt(a === 'zin' ? 1.25 : 0.8, r.width / 2, r.height / 2); break; }
+    case 'fit': fit(); break;
+    case 'solve': analysis = !analysis; render(); renderPanel(); break;
+    case 'report':
+      if(!analysis){ analysis = true; render(); renderPanel(); }
+      openReport(); break;
+    case 'closeReport': $('#modal').hidden = true; break;
+  }
+}
+document.addEventListener('click', e => {
+  if(e.target.id === 'modal'){ $('#modal').hidden = true; return; }
+  const b = e.target.closest('[data-a]'); if(b) act(b.dataset.a);
+});
+$('#fileIn').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = ''; if(!f) return;
+  try{
+    const d = JSON.parse(await f.text());
+    if(!Array.isArray(d.comps) || !Array.isArray(d.wires)) throw 0;
+    d.comps = d.comps.filter(c => T[c.type]);
+    const pre = snapshot(); doc = d; cleanWires(); sel = {c: new Set(), w: new Set()};
+    commit(pre); renderPanel(); fit();
+  }catch(_){ alert('El archivo no es un diagrama válido.'); }
+});
+window.addEventListener('resize', requestRender);
+
+/* ---------- Inicio ---------- */
+function sample(){
+  const c = (id, type, x, y, rot, label, value, hide) => ({id, type, x, y, rot, label, value, ...(hide ? {hide} : {})});
+  return {
+    comps: [
+      c('b1', 'battery', 200, 220, 0, 'B1', '9V'),
+      c('r1', 'resistor', 320, 140, 0, 'R1', '330Ω'),
+      c('d1', 'led', 440, 220, 1, 'D1', 'Rojo'),
+      c('g1', 'ground', 200, 340, 0, 'GND', '', true),
+      c('t1', 'text', 320, 60, 0, 'Circuito LED básico', ''),
+    ],
+    wires: [
+      {id: 'w1', a: {c: 'b1', t: 0}, b: {c: 'r1', t: 0}, pts: [[200, 140]], flip: true},
+      {id: 'w2', a: {c: 'r1', t: 1}, b: {c: 'd1', t: 0}, pts: [[440, 140]], flip: false},
+      {id: 'w3', a: {c: 'd1', t: 1}, b: {c: 'b1', t: 1}, pts: [[440, 300], [200, 300]], flip: true},
+      {id: 'w4', a: {c: 'b1', t: 1}, b: {c: 'g1', t: 0}, pts: [], flip: true},
+    ],
+  };
+}
+buildPalette();
+try{ const s = localStorage.getItem(KEY); if(s){ const d = JSON.parse(s); if(Array.isArray(d.comps) && Array.isArray(d.wires)) doc = d; else doc = sample(); } else doc = sample(); }
+catch(_){ doc = sample(); }
+cleanWires();
+renderPanel();
+render();
+requestAnimationFrame(fit);
+</script>
+</body>
+</html>
