@@ -2,9 +2,11 @@
 
 Aplicación web de un solo archivo (`editor-circuitos.html`) para armar diagramas de circuitos electrónicos y resolverlos en DC.
 
+**Úsalo en línea:** https://nshtpdrz.github.io/editor-circuitos/
+
 ## Uso
 
-Abre `editor-circuitos.html` en el navegador. No necesita instalación ni internet.
+Abre `editor-circuitos.html` en el navegador (o el link de arriba). No necesita instalación.
 
 - Coloca componentes desde la paleta (resistencias, fuentes, tierra, capacitores, diodos, LEDs, interruptores, etc.).
 - Une terminales con cables; termina un cable sobre otro para crear un nodo.
